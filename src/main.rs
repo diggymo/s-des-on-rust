@@ -1,27 +1,34 @@
+use rayon::current_num_threads;
+use rayon::prelude::*;
 use std::fs;
+use std::time::Instant;
 
 fn main() {
     let (key1, key2) = generate_key(0b1010000010);
-    println!("key1: {:10b}", key1);
-    println!("key2: {:10b}", key2);
+    dbg!(current_num_threads());
 
-    let plain_text_file = fs::read("./plain.txt").unwrap();
+    let plain_text_file = fs::read("./title.basics.tsv").unwrap();
+
+    let start = Instant::now();
 
     let encrypted_text = plain_text_file
-        .iter()
+        .par_iter() // Rayonを利用した並列処理の場合
+        // .iter() // 直列処理の場合
         .map(|char| encrypt(char.clone(), key1, key2))
         .collect::<Vec<_>>();
 
+    let duration = start.elapsed();
+    println!("Duration: {:?}", duration);
     fs::write("./encrypted.txt", encrypted_text).unwrap();
 
-    let encrypted_text_file = fs::read("./encrypted.txt").unwrap();
+    // let encrypted_text_file = fs::read("./encrypted.txt").unwrap();
 
-    let decrypted_text = encrypted_text_file
-        .iter()
-        .map(|char| decrypt(char.clone(), key1, key2))
-        .collect::<Vec<_>>();
+    // let decrypted_text = encrypted_text_file
+    //     .iter()
+    //     .map(|char| decrypt(char.clone(), key1, key2))
+    //     .collect::<Vec<_>>();
 
-    fs::write("./decrypted.txt", decrypted_text).unwrap();
+    // fs::write("./decrypted.txt", decrypted_text).unwrap();
 }
 
 fn generate_key(input: u16) -> (u8, u8) {
