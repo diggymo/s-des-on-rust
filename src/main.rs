@@ -1,29 +1,155 @@
+use rand;
+use rand::Rng;
 use std::fs;
 
+/**
+ * FIXME: パディングしてない
+ */
 fn main() {
+    // ecb_mode();
+    // cbc_mode();
+    // cfb_mode();
+    ofb_mode();
+}
+
+fn ofb_mode() {
+    let iv = create_initialized_vector();
     let (key1, key2) = generate_key(0b1010000010);
-    println!("key1: {:10b}", key1);
-    println!("key2: {:10b}", key2);
+
+    let plain_text_file = fs::read("./plain.txt").unwrap();
+
+    // 初期化ベクトルは先頭に付与しておく
+    let mut encrypted_text: Vec<u8> = vec![iv];
+
+    let mut next_input = iv;
+    for input in plain_text_file.into_iter() {
+        let encrypted = encrypt(next_input, key1, key2);
+        let mixed = input ^ encrypted;
+        encrypted_text.push(mixed);
+        next_input = encrypted;
+    }
+
+    fs::write("./ofb.encrypted.txt", encrypted_text).unwrap();
+
+    let encrypted_text_file = fs::read("./ofb.encrypted.txt").unwrap();
+
+    let mut encrypted_text_file_iter = encrypted_text_file.into_iter();
+
+    let mut next_input = encrypted_text_file_iter.next().unwrap();
+    let mut decrypted_text: Vec<u8> = vec![];
+    for input in encrypted_text_file_iter {
+        let encrypted: u8 = encrypt(next_input, key1, key2);
+
+        let decrypted = input ^ encrypted;
+
+        next_input = encrypted;
+        decrypted_text.push(decrypted);
+    }
+
+    fs::write("./ofb.decrypted.txt", decrypted_text).unwrap();
+}
+
+fn cfb_mode() {
+    let iv = create_initialized_vector();
+    let (key1, key2) = generate_key(0b1010000010);
+
+    // 暗号化
+    let plain_text_file = fs::read("./plain.txt").unwrap();
+
+    // 初期化ベクトルは先頭に付与しておく
+    let mut encrypted_text: Vec<u8> = vec![iv];
+
+    let mut next_input = iv;
+    for input in plain_text_file.into_iter() {
+        let encrypted = encrypt(next_input, key1, key2);
+        let mixed = input ^ encrypted;
+        encrypted_text.push(mixed);
+        next_input = mixed;
+    }
+
+    fs::write("./cfb.encrypted.txt", encrypted_text).unwrap();
+
+    let encrypted_text_file = fs::read("./cfb.encrypted.txt").unwrap();
+
+    let mut encrypted_text_file_iter = encrypted_text_file.into_iter();
+    let iv = encrypted_text_file_iter.next().unwrap();
+
+    let mut next_input = iv;
+    let mut decrypted_text: Vec<u8> = vec![];
+    for input in encrypted_text_file_iter {
+        let encrypted: u8 = encrypt(next_input, key1, key2);
+
+        let decrypted = input ^ encrypted;
+
+        next_input = input;
+        decrypted_text.push(decrypted);
+    }
+
+    fs::write("./cfb.decrypted.txt", decrypted_text).unwrap();
+}
+
+fn cbc_mode() {
+    let iv = create_initialized_vector();
+    let (key1, key2) = generate_key(0b1010000010);
+
+    let plain_text_file = fs::read("./plain.txt").unwrap();
+
+    // 初期化ベクトルは先頭に付与しておく
+    let mut encrypted_text: Vec<u8> = vec![iv];
+    let mut next_input = iv;
+    for input in plain_text_file.into_iter() {
+        let mixed = input ^ next_input;
+        let encrypted = encrypt(mixed, key1, key2);
+        next_input = encrypted;
+        encrypted_text.push(encrypted);
+    }
+
+    fs::write("./cbc.encrypted.txt", encrypted_text).unwrap();
+
+    let encrypted_text_file = fs::read("./cbc.encrypted.txt").unwrap();
+
+    let mut encrypted_text_file_iter = encrypted_text_file.into_iter();
+    let iv = encrypted_text_file_iter.next().unwrap();
+
+    let mut next_input = iv;
+    let mut decrypted_text: Vec<u8> = vec![];
+    for input in encrypted_text_file_iter {
+        let decrypted: u8 = decrypt(input, key1, key2);
+        let plain = decrypted ^ next_input;
+        next_input = input;
+        decrypted_text.push(plain);
+    }
+
+    fs::write("./cbc.decrypted.txt", decrypted_text).unwrap();
+}
+
+fn ecb_mode() {
+    let (key1, key2) = generate_key(0b1010000010);
 
     let plain_text_file = fs::read("./plain.txt").unwrap();
 
     let encrypted_text = plain_text_file
-        .iter()
-        .map(|char| encrypt(char.clone(), key1, key2))
+        .into_iter()
+        .map(|char| encrypt(char, key1, key2))
         .collect::<Vec<_>>();
 
-    fs::write("./encrypted.txt", encrypted_text).unwrap();
+    fs::write("./ecb.encrypted.txt", encrypted_text).unwrap();
 
-    let encrypted_text_file = fs::read("./encrypted.txt").unwrap();
+    let encrypted_text_file = fs::read("./ecb.encrypted.txt").unwrap();
 
     let decrypted_text = encrypted_text_file
         .iter()
         .map(|char| decrypt(char.clone(), key1, key2))
         .collect::<Vec<_>>();
 
-    fs::write("./decrypted.txt", decrypted_text).unwrap();
+    fs::write("./ecb.decrypted.txt", decrypted_text).unwrap();
 }
 
+fn create_initialized_vector() -> u8 {
+    let mut rng = rand::thread_rng();
+    let initialized_vector = rng.gen_range(0..255);
+    return initialized_vector;
+}
 fn generate_key(input: u16) -> (u8, u8) {
     let after_p10 = p10_permutation(input);
     let [left_p10, right_p10] = split_10bit(after_p10);
@@ -306,5 +432,25 @@ mod test {
 
         assert_eq!(key1, 0b10100100);
         assert_eq!(key2, 0b01000010);
+    }
+
+    #[test]
+    fn test_ecb_mode() {
+        ecb_mode();
+    }
+
+    #[test]
+    fn test_cbc_mode() {
+        cbc_mode();
+    }
+
+    #[test]
+    fn test_cfb_mode() {
+        cfb_mode();
+    }
+
+    #[test]
+    fn test_ofb_mode() {
+        ofb_mode();
     }
 }
