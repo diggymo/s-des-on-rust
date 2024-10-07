@@ -9,7 +9,47 @@ fn main() {
     // ecb_mode();
     // cbc_mode();
     // cfb_mode();
-    ofb_mode();
+    // ofb_mode();
+    ctr_mode();
+}
+
+fn ctr_mode() {
+    let nonce: u8 = rand::thread_rng().gen_range(0..255);
+    let (key1, key2) = generate_key(0b1010000010);
+
+    let plain_text_file = fs::read("./plain.txt").unwrap();
+
+    let mut encrypted_text = plain_text_file
+        .into_iter()
+        .enumerate()
+        .map(|(index, char)| {
+            // FIXME: usizeを超えるとpanicする
+            let counter = nonce.wrapping_add(index as u8);
+            let encrypted = encrypt(counter, key1, key2);
+            encrypted ^ char
+        })
+        .collect::<Vec<_>>();
+
+    // nonceを埋め込む
+    encrypted_text.insert(0, nonce);
+    fs::write("./ctr.encrypted.txt", encrypted_text).unwrap();
+
+    let encrypted_text_file: Vec<u8> = fs::read("./ctr.encrypted.txt").unwrap();
+    // nonceを取り出す
+    let mut encrypted_text_file_iter = encrypted_text_file.into_iter();
+    let nonce = encrypted_text_file_iter.next().unwrap();
+
+    let decrypted_text = encrypted_text_file_iter
+        .enumerate()
+        .map(|(index, char)| {
+            // FIXME: usizeを超えるとpanicする
+            let counter = nonce.wrapping_add(index as u8);
+            let encrypted = encrypt(counter, key1, key2);
+            encrypted ^ char
+        })
+        .collect::<Vec<_>>();
+
+    fs::write("./ctr.decrypted.txt", decrypted_text).unwrap();
 }
 
 fn ofb_mode() {
@@ -452,5 +492,16 @@ mod test {
     #[test]
     fn test_ofb_mode() {
         ofb_mode();
+    }
+
+    #[test]
+    fn test_increment() {
+        let a: u8 = 0b11111111;
+        assert_eq!(a.wrapping_add(1), 0);
+    }
+
+    #[test]
+    fn test_ctr_mode() {
+        ctr_mode();
     }
 }
